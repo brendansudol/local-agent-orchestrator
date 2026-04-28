@@ -1,0 +1,99 @@
+# Copy this file to config.toml and fill in your local values.
+
+[asana]
+access_token_env = "ASANA_ACCESS_TOKEN"
+project_gid = "1200000000000000"
+ready_section_gid = "1200000000000001"
+review_section_gid = "1200000000000002"
+blocked_section_gid = "1200000000000003"
+done_section_gid = "1200000000000004"
+task_limit = 1
+
+[asana.fields]
+agent_eligible = "1200000000000100"
+preferred_agent = "1200000000000101"
+repo = "1200000000000102"
+base_branch = "1200000000000103"
+status = "1200000000000104"
+run_id = "1200000000000105"
+branch_name = "1200000000000106"
+pr_url = "1200000000000107"
+last_heartbeat = "1200000000000108"
+runner = "1200000000000109"
+
+[asana.enums.agent_eligible]
+yes = "1200000000000200"
+no = "1200000000000201"
+
+[asana.enums.preferred_agent]
+codex = "1200000000000210"
+claude = "1200000000000211"
+either = "1200000000000212"
+
+[asana.enums.status]
+queued = "1200000000000220"
+claimed = "1200000000000221"
+running = "1200000000000222"
+verifying = "1200000000000223"
+review = "1200000000000224"
+blocked = "1200000000000225"
+done = "1200000000000226"
+
+[repo]
+slug = "example-service"
+path = "/absolute/path/to/example-service"
+remote = "origin"
+default_base_branch = "main"
+worktree_root = "~/agent-work"
+
+[agents]
+default = "codex"
+repair_rounds = 1
+review = true
+
+[agents.codex]
+command = [
+  "codex", "exec",
+  "-C", "{worktree}",
+  "--sandbox", "workspace-write",
+  "--ask-for-approval", "never",
+  "--json",
+  "--output-last-message", "{final_message}",
+  "-"
+]
+prompt_mode = "stdin"
+review_command = [
+  "codex", "exec",
+  "-C", "{worktree}",
+  "--sandbox", "read-only",
+  "--json",
+  "-"
+]
+review_prompt_mode = "stdin"
+
+[agents.claude]
+command = [
+  "claude", "-p",
+  "--output-format", "json",
+  "--max-turns", "20",
+  "--permission-mode", "acceptEdits",
+  "{prompt}"
+]
+prompt_mode = "arg"
+review_command = [
+  "claude", "-p",
+  "--output-format", "json",
+  "--max-turns", "10",
+  "--permission-mode", "plan",
+  "{prompt}"
+]
+review_prompt_mode = "arg"
+
+[verification]
+commands = [
+  "python3 -m unittest discover"
+]
+
+[pr]
+enabled = false
+command = "gh pr create --fill --draft --base {base_branch} --head {branch}"
