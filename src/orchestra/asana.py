@@ -5,7 +5,6 @@ from typing import Any
 from urllib import error, parse, request
 import json
 import os
-import socket
 
 from .config import AppConfig, AsanaConfig, ConfigError
 from .models import AgentTask
@@ -19,8 +18,14 @@ class AsanaError(RuntimeError):
 
 
 class AsanaClient:
-    def __init__(self, config: AsanaConfig, token: str | None = None) -> None:
+    def __init__(
+        self,
+        config: AsanaConfig,
+        runner_id: str,
+        token: str | None = None,
+    ) -> None:
         self.config = config
+        self.runner_id = runner_id
         self.token = token or os.environ.get(config.access_token_env)
         if not self.token:
             raise ConfigError(
@@ -40,7 +45,7 @@ class AsanaClient:
         tasks: list[AgentTask] = []
         for item in response.get("data", []):
             task = self.get_task(item["gid"])
-            if is_claimable(task):
+            if is_claimable(task, self.runner_id):
                 tasks.append(task)
             if len(tasks) >= self.config.task_limit:
                 break
@@ -79,7 +84,8 @@ class AsanaClient:
         runner: str | None = None,
     ) -> AgentTask | None:
         fresh = self.get_task(task.gid)
-        if not is_claimable(fresh):
+        runner = runner or self.runner_id
+        if not is_claimable(fresh, runner):
             return None
 
         self.update_custom_fields(
@@ -89,17 +95,21 @@ class AsanaClient:
                 self.config.fields.run_id: run_id,
                 self.config.fields.branch_name: branch,
                 self.config.fields.last_heartbeat: _now(),
-                self.config.fields.runner: runner or socket.gethostname(),
+                self.config.fields.runner: runner,
             },
         )
         verified = self.get_task(task.gid)
-        if verified.run_id != run_id:
+        if verified.run_id != run_id or verified.runner != runner:
             return None
         return verified
 
     def verify_claim(self, task_gid: str, run_id: str) -> bool:
         task = self.get_task(task_gid)
-        return task.run_id == run_id and task.status in {"claimed", "running", "verifying"}
+        return (
+            task.run_id == run_id
+            and task.runner == self.runner_id
+            and task.status in {"claimed", "running", "verifying"}
+        )
 
     def set_status(self, task_gid: str, status: str) -> None:
         self.update_custom_fields(
@@ -168,8 +178,14 @@ class AsanaClient:
 
 
 class DryRunQueue:
-    def __init__(self, config: AppConfig, task: AgentTask | None = None) -> None:
+    def __init__(
+        self,
+        config: AppConfig,
+        runner_id: str,
+        task: AgentTask | None = None,
+    ) -> None:
         self.config = config
+        self.runner_id = runner_id
         self.task = task or AgentTask(
             gid="dry-run-task",
             name="Dry run orchestration task",
@@ -182,6 +198,7 @@ class DryRunQueue:
             base_branch=config.repo.default_base_branch,
             preferred_agent=config.agents.default,
             status="queued",
+            assigned_runner=runner_id,
             eligible=True,
         )
         self.comments: list[str] = []
@@ -189,7 +206,7 @@ class DryRunQueue:
         self.section_moves: list[str] = []
 
     def list_ready_tasks(self) -> list[AgentTask]:
-        return [self.task] if is_claimable(self.task) else []
+        return [self.task] if is_claimable(self.task, self.runner_id) else []
 
     def claim_task(
         self,
@@ -200,12 +217,17 @@ class DryRunQueue:
     ) -> AgentTask:
         task.run_id = run_id
         task.status = "claimed"
+        task.runner = runner or self.runner_id
         task.raw["branch"] = branch
-        task.raw["runner"] = runner
+        task.raw["runner"] = task.runner
         return task
 
     def verify_claim(self, task_gid: str, run_id: str) -> bool:
-        return self.task.gid == task_gid and self.task.run_id == run_id
+        return (
+            self.task.gid == task_gid
+            and self.task.run_id == run_id
+            and self.task.runner == self.runner_id
+        )
 
     def set_status(self, task_gid: str, status: str) -> None:
         self.statuses.append(status)
@@ -241,13 +263,20 @@ def parse_task(raw: dict[str, Any], config: AsanaConfig) -> AgentTask:
         preferred_agent=_normalize_agent(preferred_agent),
         status=_normalize_optional(status),
         run_id=_field_text(raw, fields.run_id),
+        runner=_field_text(raw, fields.runner),
+        assigned_runner=_field_text(raw, fields.assigned_runner),
         eligible=_is_eligible(raw, config),
         raw=raw,
     )
 
 
-def is_claimable(task: AgentTask) -> bool:
-    return task.eligible and task.status == "queued" and not task.run_id
+def is_claimable(task: AgentTask, runner_id: str | None = None) -> bool:
+    return (
+        task.eligible
+        and task.status == "queued"
+        and not task.run_id
+        and _assigned_to_runner(task, runner_id)
+    )
 
 
 def _custom_field(raw: dict[str, Any], gid: str) -> dict[str, Any] | None:
@@ -257,7 +286,9 @@ def _custom_field(raw: dict[str, Any], gid: str) -> dict[str, Any] | None:
     return None
 
 
-def _field_text(raw: dict[str, Any], gid: str) -> str | None:
+def _field_text(raw: dict[str, Any], gid: str | None) -> str | None:
+    if not gid:
+        return None
     field = _custom_field(raw, gid)
     if not field:
         return None
@@ -309,6 +340,18 @@ def _normalize_agent(value: str | None) -> str:
     if normalized not in {"codex", "claude", "either"}:
         return "either"
     return normalized
+
+
+def _assigned_to_runner(task: AgentTask, runner_id: str | None) -> bool:
+    if not task.assigned_runner:
+        return True
+    if not runner_id:
+        return False
+    return _normalize_runner(task.assigned_runner) == _normalize_runner(runner_id)
+
+
+def _normalize_runner(value: str) -> str:
+    return value.strip().lower()
 
 
 def _normalize_optional(value: str | None) -> str | None:

@@ -21,6 +21,7 @@ branch_name = "1200000000000106"
 pr_url = "1200000000000107"
 last_heartbeat = "1200000000000108"
 runner = "1200000000000109"
+assigned_runner = "1200000000000110"
 
 [asana.enums.agent_eligible]
 yes = "1200000000000200"
@@ -47,6 +48,9 @@ remote = "origin"
 default_base_branch = "main"
 worktree_root = "~/agent-work"
 git_timeout_seconds = 120
+
+[runner]
+id = "brendan"
 
 [agents]
 default = "codex"

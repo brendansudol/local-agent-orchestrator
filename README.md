@@ -65,11 +65,13 @@ Create custom fields matching `config.example.toml`:
 - `PR URL`
 - `Last heartbeat`
 - `Runner`
+- `Assigned runner`
 
 The orchestrator claims tasks by moving `Agent status` from `queued` to `claimed`,
 writing a unique `Run id`, and then re-reading the task to verify ownership. If
-`running_section_gid` is configured, claimed tasks are also moved out of the ready
-section for clearer board state.
+`Assigned runner` is configured, each worker only claims unassigned tasks or tasks
+assigned to its `[runner].id`. If `running_section_gid` is configured, claimed
+tasks are also moved out of the ready section for clearer board state.
 
 ## Workflow
 

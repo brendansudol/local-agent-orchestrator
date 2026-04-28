@@ -8,6 +8,7 @@ import re
 import shlex
 import subprocess
 import time
+import uuid
 
 from .config import AppConfig
 from .models import CommandResult, RunContext
@@ -15,7 +16,7 @@ from .models import CommandResult, RunContext
 
 def make_run_id(task_gid: str, now: datetime | None = None) -> str:
     timestamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
-    return f"{timestamp}-{safe_fragment(task_gid)}"
+    return f"{timestamp}-{safe_fragment(task_gid)}-{uuid.uuid4().hex[:8]}"
 
 
 def make_branch(task_gid: str, run_id: str) -> str:

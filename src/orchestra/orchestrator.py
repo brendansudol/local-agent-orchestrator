@@ -45,7 +45,12 @@ class Orchestrator:
     ) -> None:
         self.config = config
         self.dry_run = dry_run
-        self.queue = DryRunQueue(config, dry_task) if dry_run else AsanaClient(config.asana)
+        self.runner_id = config.runner.id or socket.gethostname()
+        self.queue = (
+            DryRunQueue(config, self.runner_id, dry_task)
+            if dry_run
+            else AsanaClient(config.asana, self.runner_id)
+        )
         self.runner = AgentRunner(config)
 
     def run_loop(self, *, once: bool = False, interval_seconds: int = 60) -> RunOutcome:
@@ -64,9 +69,8 @@ class Orchestrator:
         task = tasks[0]
         run_id = make_run_id(task.gid)
         branch = make_branch(task.gid, run_id)
-        runner_id = socket.gethostname()
 
-        claimed = self.queue.claim_task(task, run_id, branch, runner_id)
+        claimed = self.queue.claim_task(task, run_id, branch, self.runner_id)
         if claimed is None:
             return RunOutcome(False, True, f"Task {task.gid} was already claimed")
 
@@ -93,7 +97,7 @@ class Orchestrator:
         self.queue.set_status(context.task.gid, "running")
         self.queue.add_comment(
             context.task.gid,
-            f"Agent run {context.run_id} started on {socket.gethostname()}.\n"
+            f"Agent run {context.run_id} started on {self.runner_id}.\n"
             f"Branch: {context.branch}",
         )
 
@@ -108,6 +112,7 @@ class Orchestrator:
                 "worktree": str(context.worktree),
                 "implementer": context.implementer,
                 "reviewer": context.reviewer,
+                "runner_id": self.runner_id,
                 "dry_run": context.dry_run,
             },
         )
@@ -303,6 +308,7 @@ class Orchestrator:
             f"Agent run {context.run_id} completed.",
             f"Implementer: {context.implementer}",
             f"Branch: {context.branch}",
+            f"Runner: {self.runner_id}",
             f"Verification: {'passed' if verification.ok else 'failed'}",
         ]
         if review:

@@ -16,6 +16,8 @@ class AgentTask:
     preferred_agent: str = "either"
     status: str | None = None
     run_id: str | None = None
+    runner: str | None = None
+    assigned_runner: str | None = None
     eligible: bool = False
     raw: dict[str, Any] = field(default_factory=dict)
 

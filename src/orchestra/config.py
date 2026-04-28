@@ -22,6 +22,7 @@ class AsanaFields:
     pr_url: str
     last_heartbeat: str
     runner: str
+    assigned_runner: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,12 +95,18 @@ class PrConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class RunnerConfig:
+    id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AppConfig:
     asana: AsanaConfig
     repo: RepoConfig
     agents: AgentsConfig
     verification: VerificationConfig
     pr: PrConfig
+    runner: RunnerConfig
 
 
 def load_config(path: str | Path) -> AppConfig:
@@ -161,6 +168,9 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
 
     verification_data = data.get("verification", {})
     pr_data = data.get("pr", {})
+    runner_data = data.get("runner", {})
+    if not isinstance(runner_data, dict):
+        raise ConfigError("[runner] must be a table")
 
     return AppConfig(
         asana=AsanaConfig(
@@ -212,6 +222,7 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
                 "Agent changes for Asana task {task_gid}",
             ),
         ),
+        runner=RunnerConfig(id=_optional_non_empty_string(runner_data.get("id"), "runner.id")),
     )
 
 
@@ -257,6 +268,14 @@ def _positive_float(value: Any, name: str) -> float:
     if parsed <= 0:
         raise ConfigError(f"{name} must be a positive number")
     return parsed
+
+
+def _optional_non_empty_string(value: Any, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(f"{name} must be a non-empty string")
+    return value.strip()
 
 
 def _normalize_enums(value: Any) -> dict[str, dict[str, str]]:

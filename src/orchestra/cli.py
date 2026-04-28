@@ -74,6 +74,7 @@ def load_task_json(path: Path, config) -> AgentTask:
         base_branch=raw.get("base_branch") or config.repo.default_base_branch,
         preferred_agent=str(raw.get("preferred_agent", config.agents.default)),
         status="queued",
+        assigned_runner=raw.get("assigned_runner"),
         eligible=True,
         raw=raw,
     )
@@ -81,4 +82,3 @@ def load_task_json(path: Path, config) -> AgentTask:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

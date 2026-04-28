@@ -93,16 +93,20 @@ Create these custom fields:
 | `PR URL` | text | written by worker |
 | `Last heartbeat` | text | written by worker |
 | `Runner` | text | written by worker |
+| `Assigned runner` | text or single-select | teammate/worker IDs, for example `brendan` |
 
 Only tasks with these values are claimable:
 
 - `Agent eligible = yes`
 - `Agent status = queued`
 - empty `Run id`
+- empty `Assigned runner` or `Assigned runner` equal to this worker's `runner.id`
 
 That lets multiple local workers poll the same project with low risk of duplicate
-work. The worker writes `claimed`, `Run id`, `Branch name`, `Last heartbeat`, and
-`Runner`, then re-reads the task to verify ownership.
+work. Use empty `Assigned runner` for a shared pool task, or set it to a specific
+teammate's runner ID to route the task to that teammate. The worker writes
+`claimed`, `Run id`, `Branch name`, `Last heartbeat`, and `Runner`, then re-reads
+the task to verify ownership.
 
 ## 4. Fill In Asana IDs
 
@@ -148,6 +152,7 @@ branch_name = "..."
 pr_url = "..."
 last_heartbeat = "..."
 runner = "..."
+assigned_runner = "..."
 
 [asana.enums.agent_eligible]
 yes = "..."
@@ -156,6 +161,10 @@ no = "..."
 
 `running_section_gid` is optional. When present, claimed tasks are moved out of
 the ready section so the board is easier for humans to scan.
+
+`assigned_runner` is optional but recommended when more than one teammate uses
+the same Asana board. If it is omitted, the worker treats all queued eligible
+tasks as part of the shared pool.
 
 ## 5. Configure the Target Repository
 
@@ -170,6 +179,16 @@ default_base_branch = "main"
 worktree_root = "~/agent-work"
 git_timeout_seconds = 120
 ```
+
+Set a stable runner ID for this teammate or machine:
+
+```toml
+[runner]
+id = "brendan"
+```
+
+If `[runner].id` is not set, the worker uses the machine hostname. A stable,
+human-readable ID is better when multiple teammates share one board.
 
 The current worker is intentionally one-repository-per-config. If you want to
 orchestrate multiple repositories, run one worker process per repository with a
@@ -329,6 +348,7 @@ Create or update one Asana task in the ready section:
 - `Repo = <your configured repo slug>`
 - `Base branch = main`
 - `Agent status = queued`
+- `Assigned runner` is empty or equals your `[runner].id`
 - clear `Run id`
 
 Then run:
@@ -384,7 +404,8 @@ export ASANA_ACCESS_TOKEN="..."
 `No eligible queued tasks found`
 
 Check that the task is in the ready section, `Agent eligible = yes`,
-`Agent status = queued`, and `Run id` is empty.
+`Agent status = queued`, `Run id` is empty, and `Assigned runner` is empty or
+matches this worker's `[runner].id`.
 
 `Task was already claimed`
 

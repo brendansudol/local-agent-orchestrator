@@ -3,12 +3,25 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from orchestra.config import parse_config
-from orchestra.gitops import commit_changes, git_diff, has_worktree_changes, run_command
+from orchestra.gitops import (
+    commit_changes,
+    git_diff,
+    has_worktree_changes,
+    make_run_id,
+    run_command,
+)
 from orchestra.models import AgentTask, RunContext
 from tests.test_config import sample_config
 
 
 class GitOpsTests(unittest.TestCase):
+    def test_make_run_id_includes_unique_suffix(self) -> None:
+        first = make_run_id("120")
+        second = make_run_id("120")
+
+        self.assertNotEqual(first, second)
+        self.assertRegex(first, r"^\d{8}-\d{6}-120-[0-9a-f]{8}$")
+
     def test_run_command_times_out(self) -> None:
         result = run_command(
             "sleep",

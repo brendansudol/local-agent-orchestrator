@@ -10,11 +10,22 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.repo.slug, "example")
         self.assertEqual(config.repo.git_timeout_seconds, 120)
+        self.assertEqual(config.runner.id, "test-runner")
         self.assertEqual(config.agents.default, "codex")
         self.assertIn("claude", config.agents.commands)
         self.assertEqual(config.agents.commands["claude"].prompt_mode, "stdin")
         self.assertEqual(config.verification.commands, ["python3 -m unittest discover"])
         self.assertEqual(config.verification.timeout_seconds, 900)
+
+    def test_runner_config_is_optional(self) -> None:
+        data = sample_config(Path("/tmp/work"))
+        data.pop("runner")
+        data["asana"]["fields"].pop("assigned_runner")
+
+        config = parse_config(data, base_dir=Path("/tmp"))
+
+        self.assertIsNone(config.runner.id)
+        self.assertIsNone(config.asana.fields.assigned_runner)
 
 
 def sample_config(worktree_root: Path) -> dict:
@@ -39,6 +50,7 @@ def sample_config(worktree_root: Path) -> dict:
                 "pr_url": "pr",
                 "last_heartbeat": "heartbeat",
                 "runner": "runner",
+                "assigned_runner": "assigned_runner",
             },
             "enums": {
                 "agent_eligible": {"yes": "yes", "no": "no"},
@@ -66,6 +78,7 @@ def sample_config(worktree_root: Path) -> dict:
             "worktree_root": str(worktree_root),
             "git_timeout_seconds": 120,
         },
+        "runner": {"id": "test-runner"},
         "agents": {
             "default": "codex",
             "repair_rounds": 1,

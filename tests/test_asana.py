@@ -22,6 +22,8 @@ class AsanaParsingTests(unittest.TestCase):
                     field("base", text="main"),
                     field("status", enum_gid="queued", enum_name="Queued"),
                     field("run", text=""),
+                    field("runner", text=""),
+                    field("assigned_runner", text="test-runner"),
                 ],
             },
             config.asana,
@@ -30,7 +32,32 @@ class AsanaParsingTests(unittest.TestCase):
         self.assertTrue(task.eligible)
         self.assertEqual(task.preferred_agent, "claude")
         self.assertEqual(task.status, "queued")
-        self.assertTrue(is_claimable(task))
+        self.assertEqual(task.assigned_runner, "test-runner")
+        self.assertTrue(is_claimable(task, "test-runner"))
+        self.assertFalse(is_claimable(task, "someone-else"))
+
+    def test_unassigned_task_is_claimable_by_any_runner(self) -> None:
+        config = parse_config(sample_config(Path("/tmp/work")))
+        task = parse_task(
+            {
+                "gid": "121",
+                "name": "Implement feature",
+                "notes": "",
+                "custom_fields": [
+                    field("eligible", enum_gid="yes", enum_name="Yes"),
+                    field("preferred", enum_gid="codex", enum_name="Codex"),
+                    field("repo", text="example"),
+                    field("base", text="main"),
+                    field("status", enum_gid="queued", enum_name="Queued"),
+                    field("run", text=""),
+                    field("runner", text=""),
+                    field("assigned_runner", text=""),
+                ],
+            },
+            config.asana,
+        )
+
+        self.assertTrue(is_claimable(task, "any-runner"))
 
 
 def field(gid: str, text: str | None = None, enum_gid: str | None = None, enum_name: str | None = None):
