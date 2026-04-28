@@ -25,11 +25,17 @@ Constraints:
 - Run relevant tests before finishing if the task requires local validation.
 - If requirements are ambiguous, stop and write a concise blocking question.
 
-At the end, provide:
-1. files changed
-2. summary of implementation
-3. tests run and results
-4. risks or follow-ups
+At the very end, provide a concise Markdown section exactly named:
+## Agent Summary
+
+This is an external implementation summary for humans and Asana. Do not include
+private reasoning, hidden chain-of-thought, raw logs, or raw JSON event streams.
+Include:
+- Files changed
+- Implementation summary
+- Key decisions / tradeoffs
+- Tests run and results
+- Risks or follow-ups
 """
 
 
@@ -48,7 +54,17 @@ Fix only the failure shown below. Keep the change focused and do not broaden sco
 Verification output:
 {output}
 
-At the end, summarize the fix and the verification you ran.
+At the very end, provide a concise Markdown section exactly named:
+## Agent Summary
+
+This is an external repair summary for humans and Asana. Do not include private
+reasoning, hidden chain-of-thought, raw logs, or raw JSON event streams.
+Include:
+- Files changed
+- Implementation summary
+- Key decisions / tradeoffs
+- Tests run and results
+- Risks or follow-ups
 """
 
 
