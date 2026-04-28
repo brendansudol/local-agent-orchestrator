@@ -5,6 +5,11 @@ from pathlib import Path
 import socket
 import time
 
+from .agent_summary import (
+    capture_agent_summary,
+    read_captured_agent_summary,
+    trim_agent_summary_for_asana,
+)
 from .agents import AgentRunner, select_implementer, select_reviewer
 from .asana import AsanaClient, DryRunQueue
 from .config import AppConfig
@@ -119,6 +124,7 @@ class Orchestrator:
 
         prompt = build_implementation_prompt(context.task, context)
         write_text(context.logs_dir / "prompt.md", prompt)
+        final_message_mtime = self._final_message_mtime_ns(context)
         implementation = self.runner.run(
             context.implementer,
             prompt,
@@ -126,6 +132,11 @@ class Orchestrator:
             label="implement",
         )
         self._write_command_result(context, implementation, "implement_result")
+        capture_agent_summary(
+            context.logs_dir,
+            implementation,
+            previous_final_message_mtime_ns=final_message_mtime,
+        )
         if not implementation.ok:
             write_patch(context, timeout_seconds=self.config.repo.git_timeout_seconds)
             return self._block(
@@ -143,6 +154,7 @@ class Orchestrator:
             repair_count += 1
             repair_prompt = build_repair_prompt(context.task, context, verification)
             write_text(context.logs_dir / f"repair_{repair_count}_prompt.md", repair_prompt)
+            final_message_mtime = self._final_message_mtime_ns(context)
             repair = self.runner.run(
                 context.implementer,
                 repair_prompt,
@@ -150,6 +162,12 @@ class Orchestrator:
                 label=f"repair_{repair_count}",
             )
             self._write_command_result(context, repair, f"repair_{repair_count}_result")
+            capture_agent_summary(
+                context.logs_dir,
+                repair,
+                previous_final_message_mtime_ns=final_message_mtime,
+                preserve_existing=True,
+            )
             if not repair.ok:
                 break
             verification = run_verification(self.config, context)
@@ -295,6 +313,12 @@ class Orchestrator:
         write_json(context.logs_dir / f"{name}.json", result.to_dict())
         write_text(context.logs_dir / f"{name}.log", result.combined_output())
 
+    def _final_message_mtime_ns(self, context: RunContext) -> int | None:
+        path = context.logs_dir / "final.md"
+        if not path.exists():
+            return None
+        return path.stat().st_mtime_ns
+
     def _success_summary(
         self,
         context: RunContext,
@@ -322,6 +346,10 @@ class Orchestrator:
         else:
             lines.append("PR: not created by configuration")
         lines.append(f"Logs: {context.logs_dir}")
+        agent_summary = read_captured_agent_summary(context.logs_dir)
+        if agent_summary:
+            lines.append("")
+            lines.append(trim_agent_summary_for_asana(agent_summary))
         return "\n".join(lines)
 
     def _failure_summary(
@@ -336,6 +364,11 @@ class Orchestrator:
             f"Branch: {context.branch}",
             f"Logs: {context.logs_dir}",
         ]
+        agent_summary = read_captured_agent_summary(context.logs_dir)
+        if agent_summary:
+            lines.append("")
+            lines.append(trim_agent_summary_for_asana(agent_summary))
+            lines.append("")
         if isinstance(result, CommandResult):
             lines.append(f"Command: {' '.join(result.command)}")
             lines.append(f"Exit code: {result.returncode}")
