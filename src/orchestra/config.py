@@ -29,6 +29,7 @@ class AsanaConfig:
     access_token_env: str
     project_gid: str
     ready_section_gid: str
+    running_section_gid: str | None
     review_section_gid: str
     blocked_section_gid: str
     done_section_gid: str
@@ -44,19 +45,22 @@ class RepoConfig:
     remote: str
     default_base_branch: str
     worktree_root: Path
+    git_timeout_seconds: float
 
 
 @dataclass(frozen=True, slots=True)
 class AgentCommandConfig:
     command: list[str]
     prompt_mode: str
+    timeout_seconds: float
     review_command: list[str]
     review_prompt_mode: str
+    review_timeout_seconds: float
 
-    def command_for(self, review: bool = False) -> tuple[list[str], str]:
+    def command_for(self, review: bool = False) -> tuple[list[str], str, float]:
         if review:
-            return self.review_command, self.review_prompt_mode
-        return self.command, self.prompt_mode
+            return self.review_command, self.review_prompt_mode, self.review_timeout_seconds
+        return self.command, self.prompt_mode, self.timeout_seconds
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +81,7 @@ class AgentsConfig:
 @dataclass(frozen=True, slots=True)
 class VerificationConfig:
     commands: list[str]
+    timeout_seconds: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +89,8 @@ class PrConfig:
     enabled: bool
     command: str
     push: bool = True
+    timeout_seconds: float = 120.0
+    commit_message: str = "Agent changes for Asana task {task_gid}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,16 +128,28 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
             continue
         prompt_mode = value.get("prompt_mode", "stdin")
         review_prompt_mode = value.get("review_prompt_mode", prompt_mode)
+        timeout_seconds = _positive_float(
+            value.get("timeout_seconds", agents_data.get("timeout_seconds", 3600)),
+            f"agents.{name}.timeout_seconds",
+        )
         _validate_prompt_mode(name, prompt_mode)
         _validate_prompt_mode(name, review_prompt_mode)
         commands[name] = AgentCommandConfig(
             command=_string_list(value.get("command", []), f"agents.{name}.command"),
             prompt_mode=prompt_mode,
+            timeout_seconds=timeout_seconds,
             review_command=_string_list(
                 value.get("review_command", value.get("command", [])),
                 f"agents.{name}.review_command",
             ),
             review_prompt_mode=review_prompt_mode,
+            review_timeout_seconds=_positive_float(
+                value.get(
+                    "review_timeout_seconds",
+                    value.get("timeout_seconds", agents_data.get("review_timeout_seconds", 1800)),
+                ),
+                f"agents.{name}.review_timeout_seconds",
+            ),
         )
 
     if not commands:
@@ -148,6 +167,7 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
             access_token_env=asana_data.get("access_token_env", "ASANA_ACCESS_TOKEN"),
             project_gid=_required(asana_data, "project_gid"),
             ready_section_gid=_required(asana_data, "ready_section_gid"),
+            running_section_gid=asana_data.get("running_section_gid"),
             review_section_gid=_required(asana_data, "review_section_gid"),
             blocked_section_gid=_required(asana_data, "blocked_section_gid"),
             done_section_gid=_required(asana_data, "done_section_gid"),
@@ -161,6 +181,10 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
             remote=repo_data.get("remote", "origin"),
             default_base_branch=repo_data.get("default_base_branch", "main"),
             worktree_root=worktree_root,
+            git_timeout_seconds=_positive_float(
+                repo_data.get("git_timeout_seconds", 120),
+                "repo.git_timeout_seconds",
+            ),
         ),
         agents=AgentsConfig(
             default=default_agent,
@@ -170,6 +194,10 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
         ),
         verification=VerificationConfig(
             commands=_string_list(verification_data.get("commands", []), "verification.commands"),
+            timeout_seconds=_positive_float(
+                verification_data.get("timeout_seconds", 900),
+                "verification.timeout_seconds",
+            ),
         ),
         pr=PrConfig(
             enabled=bool(pr_data.get("enabled", False)),
@@ -178,6 +206,11 @@ def parse_config(data: dict[str, Any], base_dir: Path | None = None) -> AppConfi
                 "gh pr create --fill --draft --base {base_branch} --head {branch}",
             ),
             push=bool(pr_data.get("push", True)),
+            timeout_seconds=_positive_float(pr_data.get("timeout_seconds", 120), "pr.timeout_seconds"),
+            commit_message=pr_data.get(
+                "commit_message",
+                "Agent changes for Asana task {task_gid}",
+            ),
         ),
     )
 
@@ -214,6 +247,16 @@ def _validate_prompt_mode(agent_name: str, prompt_mode: str) -> None:
         raise ConfigError(
             f"agents.{agent_name}.prompt_mode must be either 'stdin' or 'arg'"
         )
+
+
+def _positive_float(value: Any, name: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"{name} must be a positive number") from exc
+    if parsed <= 0:
+        raise ConfigError(f"{name} must be a positive number")
+    return parsed
 
 
 def _normalize_enums(value: Any) -> dict[str, dict[str, str]]:

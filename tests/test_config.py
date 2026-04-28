@@ -9,9 +9,12 @@ class ConfigTests(unittest.TestCase):
         config = parse_config(sample_config(Path("/tmp/work")), base_dir=Path("/tmp"))
 
         self.assertEqual(config.repo.slug, "example")
+        self.assertEqual(config.repo.git_timeout_seconds, 120)
         self.assertEqual(config.agents.default, "codex")
         self.assertIn("claude", config.agents.commands)
+        self.assertEqual(config.agents.commands["claude"].prompt_mode, "stdin")
         self.assertEqual(config.verification.commands, ["python3 -m unittest discover"])
+        self.assertEqual(config.verification.timeout_seconds, 900)
 
 
 def sample_config(worktree_root: Path) -> dict:
@@ -20,6 +23,7 @@ def sample_config(worktree_root: Path) -> dict:
             "access_token_env": "ASANA_ACCESS_TOKEN",
             "project_gid": "project",
             "ready_section_gid": "ready",
+            "running_section_gid": "running",
             "review_section_gid": "review",
             "blocked_section_gid": "blocked",
             "done_section_gid": "done",
@@ -60,26 +64,40 @@ def sample_config(worktree_root: Path) -> dict:
             "remote": "origin",
             "default_base_branch": "main",
             "worktree_root": str(worktree_root),
+            "git_timeout_seconds": 120,
         },
         "agents": {
             "default": "codex",
             "repair_rounds": 1,
             "review": True,
+            "timeout_seconds": 3600,
+            "review_timeout_seconds": 1800,
             "codex": {
                 "command": ["codex", "exec", "-C", "{worktree}", "-"],
                 "prompt_mode": "stdin",
+                "timeout_seconds": 3600,
                 "review_command": ["codex", "exec", "-C", "{worktree}", "-"],
                 "review_prompt_mode": "stdin",
+                "review_timeout_seconds": 1800,
             },
             "claude": {
-                "command": ["claude", "-p", "{prompt}"],
-                "prompt_mode": "arg",
-                "review_command": ["claude", "-p", "{prompt}"],
-                "review_prompt_mode": "arg",
+                "command": ["claude", "-p"],
+                "prompt_mode": "stdin",
+                "timeout_seconds": 3600,
+                "review_command": ["claude", "-p"],
+                "review_prompt_mode": "stdin",
+                "review_timeout_seconds": 1800,
             },
         },
-        "verification": {"commands": ["python3 -m unittest discover"]},
-        "pr": {"enabled": False},
+        "verification": {
+            "commands": ["python3 -m unittest discover"],
+            "timeout_seconds": 900,
+        },
+        "pr": {
+            "enabled": False,
+            "timeout_seconds": 120,
+            "commit_message": "Agent changes for Asana task {task_gid}",
+        },
     }
 
 

@@ -43,6 +43,7 @@ class CommandResult:
     stdout: str = ""
     stderr: str = ""
     duration_seconds: float = 0.0
+    timed_out: bool = False
 
     @property
     def ok(self) -> bool:
@@ -65,6 +66,7 @@ class CommandResult:
             "stdout": self.stdout,
             "stderr": self.stderr,
             "duration_seconds": round(self.duration_seconds, 3),
+            "timed_out": self.timed_out,
         }
 
 
@@ -91,4 +93,22 @@ class VerificationResult:
         return {
             "ok": self.ok,
             "commands": [command.to_dict() for command in self.commands],
+        }
+
+
+@dataclass(slots=True)
+class ReviewVerdict:
+    verdict: str
+    findings: list[dict[str, Any]] = field(default_factory=list)
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return self.verdict == "ok"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "verdict": self.verdict,
+            "findings": self.findings,
+            "raw": self.raw,
         }

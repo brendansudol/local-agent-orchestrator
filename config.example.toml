@@ -4,9 +4,10 @@
 access_token_env = "ASANA_ACCESS_TOKEN"
 project_gid = "1200000000000000"
 ready_section_gid = "1200000000000001"
-review_section_gid = "1200000000000002"
-blocked_section_gid = "1200000000000003"
-done_section_gid = "1200000000000004"
+running_section_gid = "1200000000000002"
+review_section_gid = "1200000000000003"
+blocked_section_gid = "1200000000000004"
+done_section_gid = "1200000000000005"
 task_limit = 1
 
 [asana.fields]
@@ -45,11 +46,14 @@ path = "/absolute/path/to/example-service"
 remote = "origin"
 default_base_branch = "main"
 worktree_root = "~/agent-work"
+git_timeout_seconds = 120
 
 [agents]
 default = "codex"
 repair_rounds = 1
 review = true
+timeout_seconds = 3600
+review_timeout_seconds = 1800
 
 [agents.codex]
 command = [
@@ -62,6 +66,7 @@ command = [
   "-"
 ]
 prompt_mode = "stdin"
+timeout_seconds = 3600
 review_command = [
   "codex", "exec",
   "-C", "{worktree}",
@@ -70,30 +75,35 @@ review_command = [
   "-"
 ]
 review_prompt_mode = "stdin"
+review_timeout_seconds = 1800
 
 [agents.claude]
 command = [
   "claude", "-p",
   "--output-format", "json",
   "--max-turns", "20",
-  "--permission-mode", "acceptEdits",
-  "{prompt}"
+  "--permission-mode", "acceptEdits"
 ]
-prompt_mode = "arg"
+prompt_mode = "stdin"
+timeout_seconds = 3600
 review_command = [
   "claude", "-p",
   "--output-format", "json",
   "--max-turns", "10",
-  "--permission-mode", "plan",
-  "{prompt}"
+  "--permission-mode", "plan"
 ]
-review_prompt_mode = "arg"
+review_prompt_mode = "stdin"
+review_timeout_seconds = 1800
 
 [verification]
 commands = [
   "python3 -m unittest discover"
 ]
+timeout_seconds = 900
 
 [pr]
 enabled = false
 command = "gh pr create --fill --draft --base {base_branch} --head {branch}"
+push = true
+timeout_seconds = 120
+commit_message = "Agent changes for Asana task {task_gid}"

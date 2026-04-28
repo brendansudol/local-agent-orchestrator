@@ -41,7 +41,7 @@ class AgentRunner:
         label: str | None = None,
     ) -> CommandResult:
         agent_config = self.config.agents.get(agent_name)
-        command_template, prompt_mode = agent_config.command_for(review=review)
+        command_template, prompt_mode, timeout_seconds = agent_config.command_for(review=review)
         label = label or ("review" if review else "implement")
 
         command = self._render_command(command_template, prompt, context, prompt_mode)
@@ -59,11 +59,16 @@ class AgentRunner:
         )
 
         if context.dry_run:
+            stdout = (
+                '{"verdict":"ok","findings":[]}\n'
+                if review
+                else f"dry run: skipped {label} agent {agent_name}\n"
+            )
             return CommandResult(
                 name=f"{label}:{agent_name}",
                 command=display_command,
                 returncode=0,
-                stdout=f"dry run: skipped {label} agent {agent_name}\n",
+                stdout=stdout,
             )
 
         return run_command(
@@ -71,6 +76,7 @@ class AgentRunner:
             command,
             cwd=context.worktree,
             input_text=input_text,
+            timeout_seconds=timeout_seconds,
         )
 
     def _render_command(
@@ -95,4 +101,3 @@ class AgentRunner:
         if prompt_mode == "arg" and "{prompt}" not in " ".join(command_template):
             rendered.append(prompt)
         return rendered
-

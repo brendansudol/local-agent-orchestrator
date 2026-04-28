@@ -12,6 +12,7 @@ The initial version is intentionally conservative:
 - no auto-merge
 - PR creation disabled by default
 - dry-run mode for checking config and prompt generation without Asana writes
+- timeout limits for agent, review, verification, git, and PR commands
 
 ## Quick Start
 
@@ -64,7 +65,9 @@ Create custom fields matching `config.example.toml`:
 - `Runner`
 
 The orchestrator claims tasks by moving `Agent status` from `queued` to `claimed`,
-writing a unique `Run id`, and then re-reading the task to verify ownership.
+writing a unique `Run id`, and then re-reading the task to verify ownership. If
+`running_section_gid` is configured, claimed tasks are also moved out of the ready
+section for clearer board state.
 
 ## Workflow
 
@@ -77,9 +80,23 @@ For each eligible task, the worker:
 5. runs the selected CLI agent
 6. runs configured verification commands
 7. optionally runs one repair round
-8. optionally runs cross-agent review
-9. optionally creates a draft PR
-10. updates Asana with the result
+8. blocks if no git changes were produced
+9. optionally runs cross-agent review and requires a machine-readable JSON verdict
+10. commits verified changes on the task branch
+11. optionally pushes and creates a draft PR
+12. updates Asana with the result
+
+Review agents must return JSON:
+
+```json
+{
+  "verdict": "ok",
+  "findings": []
+}
+```
+
+A `blocked` verdict leaves the Asana task in the blocked section with the run logs
+attached in the comment.
 
 ## Tests
 

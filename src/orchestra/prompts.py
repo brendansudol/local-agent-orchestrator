@@ -59,8 +59,21 @@ Working directory: {context.worktree}
 
 Review the diff below without editing files. Focus on correctness, regressions, missing
 tests, security issues, and whether the change satisfies the task. If there are no
-blocking issues, say that clearly. If there are issues, list them with file paths and
-line references where possible.
+blocking issues, return verdict "ok". If there are blocking issues, return verdict
+"blocked" and include findings with file paths and line references where possible.
+
+Return only a JSON object in this exact shape:
+{{
+  "verdict": "ok" | "blocked",
+  "findings": [
+    {{
+      "title": "short issue title",
+      "body": "one paragraph explanation",
+      "file": "path/to/file.py",
+      "line": 123
+    }}
+  ]
+}}
 
 Diff:
 {trim(diff, MAX_EMBEDDED_OUTPUT)}
@@ -72,4 +85,3 @@ def trim(value: str, limit: int) -> str:
         return value
     omitted = len(value) - limit
     return value[:limit] + f"\n\n[truncated {omitted} characters]\n"
-

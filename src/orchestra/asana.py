@@ -97,6 +97,10 @@ class AsanaClient:
             return None
         return verified
 
+    def verify_claim(self, task_gid: str, run_id: str) -> bool:
+        task = self.get_task(task_gid)
+        return task.run_id == run_id and task.status in {"claimed", "running", "verifying"}
+
     def set_status(self, task_gid: str, status: str) -> None:
         self.update_custom_fields(
             task_gid,
@@ -199,6 +203,9 @@ class DryRunQueue:
         task.raw["branch"] = branch
         task.raw["runner"] = runner
         return task
+
+    def verify_claim(self, task_gid: str, run_id: str) -> bool:
+        return self.task.gid == task_gid and self.task.run_id == run_id
 
     def set_status(self, task_gid: str, status: str) -> None:
         self.statuses.append(status)

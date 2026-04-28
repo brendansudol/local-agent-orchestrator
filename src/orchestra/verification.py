@@ -29,10 +29,10 @@ def run_verification(config: AppConfig, context: RunContext) -> VerificationResu
             f"verify:{raw_command}",
             command,
             cwd=context.worktree,
+            timeout_seconds=config.verification.timeout_seconds,
         )
         results.append(result)
         if not result.ok:
             break
 
     return VerificationResult(commands=results)
-
