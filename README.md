@@ -16,6 +16,8 @@ The initial version is intentionally conservative:
 
 ## Quick Start
 
+For the full end-to-end setup, see [docs/setup-guide.md](docs/setup-guide.md).
+
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
